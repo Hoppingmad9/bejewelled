@@ -1,0 +1,373 @@
+<html>
+
+<canvas id = "gameCanvas" width = "510", height = "600"></canvas>
+
+<script>
+
+var canvas;
+var canvasContext;
+
+var rows = 10;
+var cols = 10;
+
+var gemWidth = 50;
+var gemHeight = 50;
+var gemSpeed = 0.05;
+
+var colours;
+var gems;
+var board;
+var movement = false;
+var swap = false;
+var match = false;
+var swapDetails;
+var validMove = false;
+
+var click = false;
+var mouseX;
+var mouseY;
+
+window.onload = function(){
+    canvas = document.getElementById('gameCanvas');
+    canvasContext = canvas.getContext('2d');
+    //colours = ['cyan','red','yellow','lime','purple','navy'];
+    //colours = ['cyan','red','yellow','lime','purple'];
+    colours = ['cyan','red','yellow'];
+    //colours = ['cyan','red'];
+    gems = Array.apply(null, Array(rows*cols)); //create an array of lenght rows*cols
+    gems.forEach(createGemObjects); //create each gem object
+    gems.forEach(assignGems); //assign gem properties
+    console.log(gems);
+    board = new Array(rows); //array of length rows
+    for (var row = 0; row < rows; row++){
+        board[row] = new Array(cols); //each row as array of length cols
+        for (var col =0; col < cols; col++){
+            board[row][col] = gems[row*10+col].name; //assign gem to each position
+        }
+    }
+    console.log(board);
+    drawEverything();
+    var framesPerSecond = 60;
+    setInterval(function(){
+    if (movement == false){
+        match = false;
+        validMove = false;
+        gems.forEach(resetGems);
+        checkRowsAdv();
+        checkCols();
+        reassignGems();
+        gems.forEach(updateColours);
+        if (swap){
+            if (match){
+                swap = false;
+            }else{
+                reverseSwap();
+                swap = false;
+            }
+        }else{
+            if (match){
+            }else{
+                selectGem();
+            }
+        }
+    }
+    drawEverything();
+    moveEverything();
+    },1000/framesPerSecond);
+    canvas.addEventListener('mousedown',handleMouseClick)
+}
+
+function reverseSwap(){
+    board[swapDetails[0][0]][swapDetails[0][1]] = swapDetails[0][2];
+    board[swapDetails[1][0]][swapDetails[1][1]] = swapDetails[1][2];
+}
+
+function selectGem(){
+    if (click){
+        //console.log(mouseX+' '+mouseY);
+        click = false;
+        mouseX -= 5;
+        mouseY -= 95;
+        mouseX /= gemWidth;
+        mouseY /= gemHeight;
+        var row = Math.floor(mouseY);
+        var col = Math.floor(mouseX);
+        //console.log(row+' '+col);
+        if (row <= 9 && row >= 0 && col <= 9 && col >= 0){
+            var gem = gems[board[row][col]];
+            var adjoining = false;
+            try{
+                var gemAbove = gems[board[row-1][col]];
+                if (gemAbove.selected){
+                    adjoining = gemAbove;
+                }
+            }catch(TypeError){}
+            try{
+                var gemBelow = gems[board[row+1][col]];
+                if (gemBelow.selected){
+                    adjoining = gemBelow;
+                }
+            }catch(TypeError){}
+            try{
+                var gemLeft = gems[board[row][col-1]];
+                if (gemLeft.selected){
+                    adjoining = gemLeft;
+                }
+            }catch(TypeError){}
+            try{
+                var gemRight = gems[board[row][col+1]];
+                if (gemRight.selected){
+                    adjoining = gemRight;
+                }
+            }catch(TypeError){}
+            if (adjoining){
+                gem.selected = true;
+                //console.log(adjoining);
+                gems.forEach(deselectAll);
+                board[row][col] = adjoining.name;
+                board[adjoining.x][adjoining.y] = gem.name;
+                swap = true;
+                swapDetails = [[row,col,gem.name],[adjoining.x,adjoining.y,adjoining.name]];
+            } else{
+                gems.forEach(deselectAll);
+                gem.selected = true;                    
+            }
+        }
+    }
+}
+
+function deselectAll(item, index, arr){
+    arr[index].selected = false;
+}
+
+function handleMouseClick(evt){
+    var rect = canvas.getBoundingClientRect();
+    var root = document.documentElement;
+    mouseX = evt.clientX - rect.left - root.scrollLeft;
+    mouseY = evt.clientY - rect.top - root.scrollTop;
+    click = true;
+}
+
+function moveEverything(){
+    movement = false;
+    for (var row = 0; row < rows; row++){
+        for (var col = 0; col < cols; col++){
+            gemId = board[row][col];
+            gem = gems[gemId];
+            if (gem.x < row){
+                gem.x += gemSpeed;
+                gem.x = Math.round(gem.x*100)/100;
+                movement = true;
+            }
+            if (gem.x > row){
+                gem.x -= gemSpeed;
+                gem.x = Math.round(gem.x*100)/100;
+                movement = true;
+            }
+            if (gem.y < col){
+                gem.y += gemSpeed;
+                gem.y = Math.round(gem.y*100)/100;
+                movement = true;
+            }
+            if (gem.y > col){
+                gem.y -= gemSpeed;
+                gem.y = Math.round(gem.y*100)/100;
+                movement = true;
+            }
+        }
+    }
+}
+
+function reassignGems(){
+    for (var col = 0; col < cols; col++){
+        var newGems = 0;
+        var rowPos = 9;
+        var newGemPos = -1;
+        var colObjPos = new Array();
+        var colObjColour = new Array();
+        for (var row = 0; row < rows; row++){
+            gem = gems[board[row][col]];
+            if (gem.newColour == 'black'){
+                newGems++;
+            }
+            colObjPos.push(board[row][col]);
+            colObjColour.push(gem.newColour);
+        }
+        var boardUpdateArr = new Array();
+        for (var row = rows-1; row >= 0; row--){
+            gemId = board[row][col];
+            gem = gems[gemId];
+            if (colObjColour[row] == 'black'){
+                //board[newGems-1][col] = colObjPos[row];
+                boardUpdateArr.push([(newGems-1),colObjPos[row]]);
+                newGems--;
+                gem.newColour = colours[Math.floor(Math.random()*colours.length)];
+                gems[gemId].x = newGemPos;
+                newGemPos--;
+            } else{
+                board[rowPos][col] = colObjPos[row];
+                rowPos--;
+            }
+        }
+        boardUpdateArr.forEach(boardUpdate,col);
+    }
+}
+
+function boardUpdate(item, index, arr){
+    board[item[0]][this] = item[1];
+}
+
+function updateColours(item, index, arr){
+    arr[index].colour = arr[index].newColour; //updates colour
+}
+
+function checkRows(){
+    for (var row = 0; row < rows; row++){
+        for (var col = 0; col < cols-3; col++){
+            gem0 = gems[board[row][col]];
+            gem1 = gems[board[row][col+1]];
+            gem2 = gems[board[row][col+2]];
+            gem3 = gems[board[row][col+3]];
+            gemColours = [gem0.colour, gem1.colour, gem2.colour, gem3.colour];
+            uniqueGemColours = gemColours.filter(onlyUnique).length;
+            if (uniqueGemColours == 1 && gem0.colour != 'black'){
+                    console.log(gem0.colour+' row');
+                    gem0.newColour = 'black';
+                    gem1.newColour = 'black';
+                    gem2.newColour = 'black';
+                    gem3.newColour = 'black';
+                    match = true;
+            }
+        }
+    }
+}
+
+function checkRowsAdv(){
+    for (var row = 0; row < rows; row++){
+        for (var len = cols; len >= 4; len--){
+            for (var col = 0; col < cols-len+1; col++){
+                var localGems = new Array();
+                var gemColours = new Array();
+                for (var gem = 0; gem < len; gem++){
+                    localGems.push(gems[board[row][col+gem]]);
+                    gemColours.push(localGems[gem].colour);
+                }
+                if (localGems[0].rowMatch == false){
+                    collatedGemColours = new Object();
+                    gemColours.foreach(collateColours);
+                    uniqueGemColours = Object.keys(test).length;
+                    //uniqueGemColoursArr = gemColours.filter(onlyUnique);
+                    //uniqueGemColours = uniqueGemColoursArr.length;
+                    if (uniqueGemColours == 1){
+                        console.log(localGems[0].colour+' row of '+len);
+                        localGems.forEach(gemUpdate);
+                        match = true;
+                    }
+                    if (uniqueGemColours == 2 && len == 4){
+                        
+                    }
+                }
+            }
+        }
+    }
+}
+
+function collateColours(item, index, arr){
+    if ('undefined === typeof '){
+        collatedGemColours[item] = 0;
+    }
+    collatedGemColours[item] += 1;
+}
+
+function resetGems(item, index, arr){
+    arr[index].rowMatch = false;
+    arr[index].colMatch = false;
+}
+
+function gemUpdate(item, index, arr){
+    arr[index].newColour = 'black';
+    arr[index].rowMatch = true;
+}
+
+function onlyUnique(item, index, arr){
+    return arr.indexOf(item) === index;
+}
+
+function _checkRows(){
+    for (var row = 0; row < rows; row++){
+        for (var col = 0; col < cols-3; col++){
+            gemColour = gems[board[row][col]].colour;
+            if (gemColour == gems[board[row][col+1]].colour &&
+                gemColour == gems[board[row][col+2]].colour &&
+                gemColour == gems[board[row][col+3]].colour &&
+                gemColour != 'black'){
+                    console.log(gemColour+' row');
+                    gems[board[row][col]].newColour = 'black';
+                    gems[board[row][col+1]].newColour = 'black';
+                    gems[board[row][col+2]].newColour = 'black';
+                    gems[board[row][col+3]].newColour = 'black';
+                    match = true;
+            }
+        }
+    }
+}
+
+function checkCols(){
+    for (var col = 0; col < cols; col++){
+        for (var row = 0; row < rows-3; row++){
+            gemColour = gems[board[row][col]].colour;
+            if (gemColour == gems[board[row+1][col]].colour &&
+                gemColour == gems[board[row+2][col]].colour &&
+                gemColour == gems[board[row+3][col]].colour &&
+                gemColour != 'black'){
+                    console.log(gemColour+' col');
+                    gems[board[row][col]].newColour = 'black';
+                    gems[board[row+1][col]].newColour = 'black';
+                    gems[board[row+2][col]].newColour = 'black';
+                    gems[board[row+3][col]].newColour = 'black';
+                    match = true;
+            }
+        }
+    }
+}
+
+function drawEverything(){
+    colourRect(0,0,canvas.width,canvas.height,'black'); //background
+    for (var gemId = 0; gemId < gems.length; gemId++){
+        gem = gems[gemId];
+        var colour = gem.colour;
+        var x = gem.x;
+        var y = gem.y;
+        var selected = gem.selected;
+        if (selected){
+            colourRect(5+y*gemWidth,95+x*gemHeight,gemWidth,gemHeight,'white');
+        }
+        colourRect(10+y*gemWidth,100+x*gemHeight,gemWidth*0.8,gemHeight*0.8,colour);
+        canvasContext.fillStyle = 'black';
+        canvasContext.fillText(x+' '+y+'/'+gem.name,10+y*gemWidth,100+x*gemHeight+20);
+    }
+}
+
+function colourRect(leftX,topY,width,height,drawColour){
+    canvasContext.fillStyle = drawColour; //set colour
+    canvasContext.fillRect(leftX,topY,width,height); //draw rect
+}
+
+function assignGems(item, index, arr){
+    arr[index].name = index //sets name = index
+    arr[index].colour = colours[Math.floor(Math.random()*colours.length)]; //assigns random colour
+    arr[index].newColour = arr[index].colour // sets new colour = colour
+    arr[index].x = Math.floor(index/10); //gets x from tens
+    arr[index].y = index%10; //gets y from units
+    arr[index].selected = false; //sets selected
+    arr[index].rowMatch = false;
+    arr[index].colMatch = false;
+}
+
+function createGemObjects(item, index, arr){
+    arr[index] = new Object(); //create new object
+}
+
+</script>
+
+</html>
